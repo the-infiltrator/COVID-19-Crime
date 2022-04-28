@@ -1,107 +1,449 @@
 ---
-title: "My title"
-subtitle: "My subtitle if needed"
+title: "Analysing the effects of COVID-19 on Crime in the United States"
+subtitle: "A deep dive into criminal activity during the pandemic"
 author: 
-  - First author
-  - Another author
-thanks: "Code and data are available at: LINK."
+  - Nayan Saxena
+thanks: "Code and data are available at: https://github.com/the-infiltrator/COVID-19-Crime"
 date: "`r format(Sys.time(), '%d %B %Y')`"
-abstract: "First sentence. Second sentence. Third sentence. Fourth sentence."
+abstract: "The COVID-19 pandemic caused the various state-level governments in the United States to issue stay-at-home orders in early 2020. These policy measures resulted in sweeping impacts on the everyday life of people with mostly negative implications.  The more negative implications of the pandemic have generally eclipsed the more positive aspects such as the reduction of crime rates by 37% worldwide [@boman2021global], and also the noticeable drop in carbon emissions [@bauwens2020impact] and elevation of air quality around the world—in turn reducing pollution-related respiratory issues  [@dutheil2020covid]. While crime rates globally have gone down, it is also important to take a granular look at the crime data to observe which types of crimes have been most affected,
+and further, examine if there is a significant correlation between crime rates and COVID-19 cases — which is precisely the goal of this study. We achieve our goal of analyzing the pandemic data in conjunction with crime data obtained from the official city websites through time series modeling and also exploratory data analysis focusing on the criminal activity in key US cities such as Chicago,  Los Angeles, Philadelphia, and Seattle.  Each city has been chosen specifically to reflect different American aspects, geographical as well as socio-economic, to enable us to form more generalizable as well as granular conclusions. \\par
+ \\textbf{Keywords:} COVID-19 Pandemic, Criminal Behaviour, Time Series Modelling, Correlation, Dataset Creation, Criminal Psychology"
+
 output:
   bookdown::pdf_document2
 toc: FALSE
 bibliography: references.bib
+
+pdf_document:
+  extra_dependencies: ["float"]
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
+library(ggplot2)
+library(plotly)
+library(plyr)
+library(flexdashboard)
+library(RSocrata)
 library(tidyverse)
-library(palmerpenguins)
+library(tsbox) # transform data into time series
+library(xts)
+library(COVID19) # to get data about covid 19
+library(forecast) #ariRI model
+library(vars) #VAR and Causality
+library(dygraphs)
+library(leaflet)
+library(htmlwidgets)
+#[INCOMPLETE] Graphs in Chicago have been converted here to Plotly HTML Widgets 
+# Make some noisily increasing data [Testing Purposes]
+set.seed(955)
+dat <- data.frame(cond = rep(c("A", "B"), each=10),
+                  xvar = 1:20 + rnorm(20,sd=3),
+                  yvar = 1:20 + rnorm(20,sd=3))
+#### COVID19 DATA ####
+#Load Chicago Data
+covid19_CH <- covid19("USA", level = 3) |>
+  # this cook county contains chicago
+  filter(administrative_area_level_3 == "Cook",
+         administrative_area_level_2 == "Illinois" ) |>
+  # filter out days when confirmed is zero or one
+  # becasue when it was 2 for a very long time
+  filter(confirmed > 2)
+
+# Load Providence data
+covid19_RI <- covid19("USA", level = 2) |>
+  filter(administrative_area_level_2 == "Rhode Island") |>
+  # filter out days when confirmed is zero or one
+  # becasue when it was 1 for a very long time
+  filter(confirmed > 1)
+## March 07 has 140 confirmed case which is impossible.
+## Google shows that date had still 3 cumulative case
+## Manual adjustment on row 5
+covid19_RI$confirmed[5] = covid19_RI$confirmed[4]
+
+
+# Load Boston Data
+covid19_MA <- covid19("USA", level = 2) |>
+  filter(administrative_area_level_2 == "Massachusetts") |>
+  # filter out days when confirmed is zero or one
+  # becasue when it was 1 for a very long time
+  filter(confirmed > 1)
+
+# Load LA data
+# extract LA data from US data. 
+covid19_LA <- covid19("USA", level = 3) |>
+  filter(administrative_area_level_3 == "Los Angeles",
+         administrative_area_level_2 == "California") |>
+  # stayed at 1 for long time
+  filter(confirmed > 1,
+         date < "2020-06-12")
+
+# Load Atlanta Data
+covid19_AT <- covid19("USA", level = 3) |>
+  filter(administrative_area_level_2 == "Georgia",
+         administrative_area_level_3 == 'Fulton') |>
+  # filter out days when confirmed is zero or one
+  # becasue when it was 2 for a very long time
+  filter(confirmed > 2)
+
+# Load Seattle Data
+covid19_SEA <- covid19("USA", level = 3) |>
+  # this cook county contains chicago
+  filter(administrative_area_level_3 == "King",
+         administrative_area_level_2 == "Washington" ) |>
+  # filter out days when confirmed is zero or one
+  # becasue when it was 1 for a very long time
+  filter(confirmed > 1)
+
+# extract Pennsylvania data from US data. 
+covid19_PA <- covid19("USA", level = 3) |>
+  filter(administrative_area_level_2 == "Pennsylvania",
+         administrative_area_level_3 == "Philadelphia") |>
+  # filter out days when confirmed is zero
+  filter(confirmed > 0)
+
+chicago<- read.csv2('data/chicago.csv')
+la<- read.csv2('data/la.csv')
+seattle<- read.csv2('data/seattle.csv')
+phil<- read.csv2('data/phil.csv')
+
+
+# summary of all crimes
+chicago_summary <- chicago |>
+  group_by(primary_type) |>
+  dplyr::summarise(number_of_crime = dplyr::n()) |>
+  arrange(desc(number_of_crime))
+
+phil_summary <- phil |>
+  group_by(text_general_code) |>
+  summarise(number_of_crime = n()) |>
+  arrange(desc(number_of_crime))
+
+LA_summary <- la |>
+  group_by(crm_cd_desc) |>
+  summarise(number_of_crime = n()) |>
+  arrange(desc(number_of_crime))
+
+seattle_summary <- seattle |>
+  group_by(offense) |>
+  dplyr::summarise(number_of_crime = dplyr::n()) |>
+  arrange(desc(number_of_crime))
 ```
 
 # Introduction
+The COVID-19 pandemic caused the various state-level governments in the United States to issue stay-at-home orders in early 2020. These policy measures resulted in sweeping impacts on the everyday life of people with mostly negative implications.  The onset of the pandemic brought with it a host of other issues like job losses, unemployment, financial crisis, and mental health issues. The pandemic also forced people to stay at home for prolonged periods, sometimes over a month, which seemed to have exasperated opioid abuse and also relapse of a host of other addictions. Furthermore, it has also been shown that the pandemic has led to increased stress and anxiety levels among individuals [@boman2020has].  These negative implications of the pandemic have generally eclipsed the more positive aspects such as the reduction of crime rates by 37% worldwide [@boman2021global], and also the noticeable drop in carbon emissions [@bauwens2020impact] and elevation of air quality around the world—in turn reducing pollution-related respiratory issues  [@dutheil2020covid]. While crime rates globally have gone down, it is also important to take a granular look at the crime data to observe which types of crimes have been most affected,
+and further, examine if there is a significant correlation between crime rates and COVID-19 cases — which is precisely the goal of this study.
 
-You can and should cross-reference sections and sub-sections. For instance, Section \@ref(data). R Markdown automatically makes the sections lower case and adds a dash to spaces to generate labels, for instance, Section \@ref(first-discussion-point). 
+The main goal of our paper is to examine the effect that the pandemic has brought in terms of specific crimes such as assault, battery, criminal theft, and much more based on state-level crime data within the United States. The main motivation behind this research is the scarcity of work examining the effect of the pandemic on crime, even though there has been a lot of work done examining other aspects concerning the pandemic. News stations have consistently reported lower crime rates but have based their analyses on simply the rate of 911 calls and not actual police data. We aim to bridge this gap by focusing on the criminal activity in key US cities such as Chicago,  Los Angeles, Philadelphia, and Seattle.  Each city has been chosen specifically to reflect different American aspects, geographical as well as socio-economic, to enable us to form more generalizable as well as granular conclusions. 
 
+The key motivation for our work is previous work showing that certain crimes like domestic violence saw a significantly smaller drop as compared to other crimes after the onset of the pandemic [@bullinger2020covid], indicating the importance of the nature of the actual crime committed. Our focus on individual city data is due to known data collection issues for such research [@boman2020has] and is motivated by preliminary studies showing that the crime rates for specific crimes are largely dependent on the city [@ashby2020initial]. There are also other factors such as the George Floyd protests in June 2020 that we hypothesize may have resulted in a noticeable increase in the vandalism and theft crimes in certain cities.  
+
+Overall, our paper is a small contribution building upon and motivated by several recent papers that have covered the impact of the pandemic on the human psyche and crime rates across different states and countries [@boman2021global, @campedelli2020disentangling, @nivette2021global] alongside work prompting further research in the area [@eisner2020violence]. We achieve our goal of analyzing the pandemic data in conjunction with crime data obtained from the official city websites through time series modeling and also exploratory data analysis. 
+
+In the following section, we outline how data for this study was collected alongside an overview of the data. In Section 3 we outline, in detail our modeling approaches and in Section 4 the results are provided for each city. We conclude our study with a detailed discussion in Section 5, explaining some of our key findings and conclusions.
+
+```{r ,fig.cap = "Summary of several important variables present within the survey data",fig.height = 5, fig.width = 5, out.width = "300px", message = FALSE, echo = FALSE, warning=FALSE, fig.align="center"}
+library(mapview)
+Location <- c("Los Angeles","Chicago","Seattle","Philadelphia" )
+lat <- c(33.82377,41.78798,47.714965, 39.952583)
+lng <- c( -118.2668,-87.7738,-122.127166 ,-75.165222)
+df <- data.frame(Location, lat,lng)
+ 
+m <- leaflet() |>
+  addTiles() |>  # Add default OpenStreetMap map tiles
+  addMarkers(data=df,)
+mapshot(m, file = "~/Rplot.png")
+knitr::include_graphics("~/Rplot.png")
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+```
 
 
 # Data
+The primary data set used is publicly available from the the R, COVID-19 Data Hub [@cdhub] containing a daily summary of COVID-19 cases, deaths, recovered, tests, vaccinations, and hospitalizations for 230+ countries, 760+ regions, and 12000+ administrative divisions of lower level including policy measures, mobility, and geospatial data. Furthermore, we use city data for each city involved in our study to examine the crime rates across the pandemic and the city-wise data sources are outlined below alongside exploratory analyses of both COVID-19 and crime data.
 
-Our data is of penguins (Figure \@ref(fig:bills)).
 
-```{r bills, fig.cap="Bills of penguins", echo = FALSE}
-ggplot(penguins, aes(x = island, fill = species)) +
-  geom_bar(alpha = 0.8) +
-  scale_fill_manual(values = c("darkorange","purple","cyan4"),
-                    guide = FALSE) +
-  theme_minimal() +
-  facet_wrap(~species, ncol = 1) +
-  coord_flip()
+
+
+
+## Chicago
+
+
+
+
+
+
+
+```{r graph1, fig.cap = "Daily Confirmed Cases of COVID-19 in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+copy  = chicago|>mutate(Date=as.Date(Date))
+
+ts_CH <- covid19_CH %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# try first log difference
+ts_diff_CH <- na.omit(diff(ts_CH))
+plot.xts(ts_diff_CH,
+         main = "Daily confirmed cases of COVID-19 in Chicago")
+
 ```
 
-Talk more about it.
+```{r graph2, fig.cap = "Yearly Trends for the top five crimes in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
+# 2020 only
+plt <- copy %>%
+  dplyr::select(y_month, month, primary_type, year) %>%
+  filter(primary_type %in% chicago_summary$primary_type[1:5] | primary_type == "MOTOR VEHICLE THEFT", y_month != "2020-06") %>%
+  dplyr::count(year, month, primary_type) %>%
+  na.omit() %>% 
+  mutate(Date = as.Date(paste("2000", month, "01", sep = "-"))) %>%
+  ggplot(aes(x=Date, y=n, group = year, color = as.character(year))) + 
+  geom_line() + 
+  facet_wrap(~primary_type, nrow = 1) +
+  guides(color = guide_legend(reverse = TRUE)) +
+   ylab('') + xlab("")+
+  theme(legend.title = element_blank()) +
+  scale_x_date(date_labels = "%b")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
 
-Also bills and their average (Figure \@ref(fig:billssssss)). (Notice how you can change the height and width so they don't take the whole page?)
-
-```{r billssssss, fig.cap="More bills of penguins", echo = FALSE, fig.width=8, fig.height=4}
-
-# This needs to be about the random data tha tI sasmpled?
-ggplot(penguins, aes(x = island, fill = species)) +
-  geom_bar(alpha = 0.8) +
-  scale_fill_manual(values = c("darkorange","purple","cyan4"),
-                    guide = FALSE) +
-  theme_minimal() +
-  facet_wrap(~species, ncol = 1) +
-  coord_flip()
+# ggplotly(chicago_?SZdaily, tooltip = c("Date", "n"))
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+plt
 ```
 
-Talk way more about it. 
+```{r graph3, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
+# 2020 only
+
+chicago_daily <- copy |>
+  dplyr::select(Date, primary_type, year) |>
+  filter(primary_type %in% chicago_summary$primary_type[1:5] | primary_type == "MOTOR VEHICLE THEFT", 
+         year == 2020) |>
+ dplyr::count(Date, primary_type) |>
+  na.omit() |>
+  ggplot(aes(Date, n, group = primary_type, color = primary_type)) +
+  geom_line() +
+  facet_wrap(~primary_type, nrow = 2) +
+  scale_fill_brewer(palette = "Set1", breaks = rev(levels(chicago_summary$primary_type[1:5]))) +
+  ylab('Number of Reported Crime') + xlab("")+
+  theme(legend.position = "none")+
+  theme(text = element_text(size=10), 
+        plot.title = element_text(hjust = 0.5))
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+chicago_daily
+# ggplotly(chicago_?SZdaily, tooltip = c("Date", "n"))
+
+```
+
+## Los Angeles
+
+```{r graph5, fig.cap = "Daily Confirmed Cases of COVID-19 in L.A",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+copy  = la|>mutate(date_occ=as.Date(date_occ))
+
+ts_LA <- covid19_LA %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# try first log difference
+ts_diff_LA <- na.omit(diff(ts_LA))
+plot.xts(ts_diff_LA,
+         main = "Daily confirmed cases of COVID-19 in LA")
+```
+
+```{r graph6, fig.cap = "Yearly Trends for the top crimes in Los Angeles",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+ty <- copy %>%
+  dplyr::select(y_month, month, crm_cd_desc, year) %>%
+  filter(crm_cd_desc %in% LA_summary$crm_cd_desc[1:5],
+         y_month != "2020-06") %>%
+  count(year, month, crm_cd_desc) %>%
+  na.omit() %>%
+  mutate(Date = as.Date(paste("2000", month, "01", sep = "-"))) %>%
+  ggplot(aes(x=Date, y=n,
+             group = year,
+             color = as.character(year))) +
+  geom_line() +
+  facet_free(~crm_cd_desc) +
+  guides(color = guide_legend(reverse = TRUE)) +
+   ylab('') + xlab("")+
+  theme(legend.title = element_blank()) +
+  scale_x_date(date_labels = "%b")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+
+# ggplotly(chicago_?SZdaily, tooltip = c("Date", "n"))
+
+ty
+```
+
+```{r graph7, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+daily <- copy %>%
+  dplyr::select(date_occ, crm_cd_desc, year) %>%
+  filter(crm_cd_desc %in% LA_summary$crm_cd_desc[1:5],
+         year == 2020) %>%
+  count(date_occ, crm_cd_desc) %>%
+  ggplot(aes(date_occ, n, group = crm_cd_desc, color = crm_cd_desc)) +
+  geom_line() +
+  facet_wrap(~crm_cd_desc, nrow=2) +
+  scale_fill_brewer(palette = "Set1", breaks = rev(levels(LA_summary$crm_cd_desc[1:5]))) +
+  ylab('') + xlab("")+
+  theme(legend.position = "none")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
 
 
+# ggplotly(chicago_?SZdaily, tooltip = c("Date", "n"))
 
-# Model
+daily
+```
 
-\begin{equation}
-Pr(\theta | y) = \frac{Pr(y | \theta) Pr(\theta)}{Pr(y)}  (\#eq:bayes)
-\end{equation}
+## Seattle
 
-Equation \@ref(eq:bayes) seems useful, eh?
+```{r graph8, fig.cap = "Daily Confirmed Cases of COVID-19 in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+copy  = seattle|>mutate(Date=as.Date(Date))
 
-Here's a dumb example of how to use some references: In paper we run our analysis in `R` [@citeR]. We also use the `tidyverse` which was written by @thereferencecanbewhatever If we were interested in baseball data then @citeLahman could be useful. 
+ts_ST <- covid19_SEA %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
 
-We can use maths by including latex between dollar signs, for instance $\theta$.
+# try first log difference
+ts_diff_ST <- na.omit(diff(ts_ST))
+plot.xts(ts_diff_ST,
+         main = "Daily confirmed cases of COVID-19 in Seattle")
+```
 
 
-# Results
+```{r graph9, fig.cap = "Yearly Trends for the top crimes in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+yty <- copy %>%
+  dplyr::select(y_month, MONTH, offense, YEAR) %>%
+  filter(offense %in% seattle_summary$offense[1:5],
+         y_month != "2020-06") %>%
+  dplyr::count(YEAR, MONTH, offense) %>%
+  na.omit() %>%
+  mutate(Date = as.Date(paste("2000", MONTH, "01", sep = "-"))) %>%
+  ggplot(aes(x=Date, y=n, group = YEAR, color = as.character(YEAR))) +
+  geom_line() +
+  facet_free(~offense, scales = 'free') +
+  guides(color = guide_legend(reverse = TRUE)) +
+   ylab('') + xlab("")+
+  theme(legend.title = element_blank()) +
+  scale_x_date(date_labels = "%b") +
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
 
-# Discussion
+yty
+```
 
-## First discussion point
+```{r graph10, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 
-If my paper were 10 pages, then should be be at least 2.5 pages. The discussion is a chance to show off what you know and what you learnt from all this. 
+seattle_daily <- copy %>%
+  dplyr::select(Date, offense, YEAR) %>%
+  filter(offense %in% seattle_summary$offense[1:5], YEAR=='2020') %>%
+  dplyr::count(Date, offense) %>%
+  ggplot(aes(Date, n, group = offense, color = offense)) +
+  geom_line() +
+  facet_wrap(~offense, nrow=2) +
+  scale_fill_brewer(palette = "Set1", breaks = rev(levels(seattle_summary$offense[1:5]))) +
+  ylab('') + xlab("")+
+  theme(legend.position = "none")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
 
-## Second discussion point
+# ggplotly(chicago_?SZdaily, tooltip = c("Date", "n"))
 
-## Third discussion point
+seattle_daily
+```
 
-## Weaknesses and next steps
+### Philadelphia
 
-Weaknesses and next steps should also be included.
+```{r graph11, fig.cap = "Daily Confirmed Cases of COVID-19 in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+copy  = phil|>mutate(date=as.Date(date))
+
+ts_PH <- covid19_PA %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# try first log difference
+ts_diff_PH <- na.omit(diff(ts_PH))
+plot.xts(ts_diff_PH,
+         main = "Daily confirmed cases of COVID-19 in Philadelphia")
+```
+
+```{r graph12, fig.cap = "Yearly Trends for the top crimes in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+plt <- phil %>%
+  dplyr::select(MONTH, dispatch_date, text_general_code, YEAR, y_month) %>%
+  filter(text_general_code %in% phil_summary$text_general_code[1:5], y_month != "2020-06") %>%
+  count(YEAR, MONTH, text_general_code) %>%
+  na.omit() %>% 
+  mutate(Date = as.Date(paste("2000", MONTH, "01", sep = "-"))) %>%
+  ggplot(aes(x=Date, y=n, group = YEAR, color = as.character(YEAR))) + 
+  geom_line() + 
+  facet_wrap(~text_general_code, nrow = 1) +
+  guides(color = guide_legend(reverse = TRUE)) +
+   ylab('') + xlab("")+
+  theme(legend.title = element_blank()) +
+  scale_x_date(date_labels = "%b")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+plt
+```
+
+```{r graph13, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
+# 2020 only
+knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
+daily <- copy %>%
+  dplyr::select(date, text_general_code, YEAR, y_month) %>%
+  filter(text_general_code %in% phil_summary$text_general_code[1:5], YEAR == 2020, y_month != '2020-06') %>%
+  count(date, text_general_code) %>%
+  na.omit() %>%
+  ggplot(aes(date, n, group = text_general_code, color = text_general_code))+
+  geom_line() + 
+  facet_wrap(~text_general_code, nrow=2) +
+  scale_fill_brewer(palette = "Set1", breaks = rev(levels(phil_summary$text_general_code[1:5]))) +
+  ylab('') + xlab("")+
+  theme(legend.position = "none")+
+  theme(text = element_text(size=10), 
+        plot.title = element_text(hjust = 0.5))
+daily
+
+```
 
 \newpage
+# Model 
+# Results 
+# Discussion
+## First discussion point 
+If my paper were 10 pages, then should be be at least 2.5 pages. The
+discussion is a chance to show off what you know and what you learnt from all
+this.  
 
-\appendix
+## Second discussion point 
+## Third discussion point 
+## Weaknesses and next steps 
+Weaknesses and next steps should also be included. 
+\newpage 
+<!-- \appendix  -->
 
-# Appendix {-}
-
-
-# Additional details
+<!--  # Appendix {-}  -->
+<!--  # Additional details  -->
 
 
 \newpage
 
 
 # References
-
-
