@@ -13,6 +13,7 @@ output:
   bookdown::pdf_document2
 toc: FALSE
 bibliography: references.bib
+urlcolor: blue 
 
 pdf_document:
   extra_dependencies: ["float"]
@@ -75,8 +76,7 @@ covid19_LA <- covid19("USA", level = 3) |>
   filter(administrative_area_level_3 == "Los Angeles",
          administrative_area_level_2 == "California") |>
   # stayed at 1 for long time
-  filter(confirmed > 1,
-         date < "2020-06-12")
+  filter(confirmed > 1)
 
 # Load Atlanta Data
 covid19_AT <- covid19("USA", level = 3) |>
@@ -138,11 +138,11 @@ The main goal of our paper is to examine the effect that the pandemic has brough
 
 The key motivation for our work is previous work showing that certain crimes like domestic violence saw a significantly smaller drop as compared to other crimes after the onset of the pandemic [@bullinger2020covid], indicating the importance of the nature of the actual crime committed. Our focus on individual city data is due to known data collection issues for such research [@boman2020has] and is motivated by preliminary studies showing that the crime rates for specific crimes are largely dependent on the city [@ashby2020initial]. There are also other factors such as the George Floyd protests in June 2020 that we hypothesize may have resulted in a noticeable increase in the vandalism and theft crimes in certain cities.  
 
-Overall, our paper is a small contribution building upon and motivated by several recent papers that have covered the impact of the pandemic on the human psyche and crime rates across different states and countries [@boman2021global, @campedelli2020disentangling, @nivette2021global] alongside work prompting further research in the area [@eisner2020violence]. We achieve our goal of analyzing the pandemic data in conjunction with crime data obtained from the official city websites through time series modeling and also exploratory data analysis. 
+Overall, our paper is a small contribution building upon and motivated by several recent papers that have covered the impact of the pandemic on the human psyche and crime rates across different states and countries [@boman2021global, @campedelli2020disentangling, @nivette2021global] alongside work prompting further research in the area [@eisner2020violence]. We achieve our goal of analyzing the pandemic data in conjunction with crime data obtained from the official city websites, using R statistical programming [@citeR], through time series modeling and also exploratory data analysis. 
 
 In the following section, we outline how data for this study was collected alongside an overview of the data. In Section 3 we outline, in detail our modeling approaches and in Section 4 the results are provided for each city. We conclude our study with a detailed discussion in Section 5, explaining some of our key findings and conclusions.
 
-```{r ,fig.cap = "Summary of several important variables present within the survey data",fig.height = 5, fig.width = 5, out.width = "300px", message = FALSE, echo = FALSE, warning=FALSE, fig.align="center"}
+```{r ,fig.cap = "Geographical overview of the cities being examined under this study.",fig.height = 5, fig.width = 5, out.width = "300px", message = FALSE, echo = FALSE, warning=FALSE, fig.align="center"}
 library(mapview)
 Location <- c("Los Angeles","Chicago","Seattle","Philadelphia" )
 lat <- c(33.82377,41.78798,47.714965, 39.952583)
@@ -166,6 +166,7 @@ The primary data set used is publicly available from the the R, COVID-19 Data Hu
 
 
 ## Chicago
+The city of Chicago was chosen for this analysis because it has the highest crime rates in America. The gang culture and gun laws have made Chicago the hub of specifically violent crimes, with higher homicide rates on average as compared to other cities.  Furthermore, during the early stages of the COVID-19 pandemic, it was found that Chicago was one of the first few cities to harbor several virus strains [@anderson], leading to a disaster proclamation by then Governor Pritzker.  Chicago has since then seen roughly three waves of the virus as shown in Figure \@ref(fig:graph1). The data for the city of Chicago was sourced from the [Chicago police](https://home.chicagopolice.org/statistics-data/data-requests/), spanning six main categories of criminal activity which are assault, battery, criminal damage, deceptive practices, vehicle theft, and general theft. 
 
 
 
@@ -173,7 +174,7 @@ The primary data set used is publicly available from the the R, COVID-19 Data Hu
 
 
 
-```{r graph1, fig.cap = "Daily Confirmed Cases of COVID-19 in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+```{r graph1, fig.cap = "Daily Confirmed Cases of COVID-19 in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 4, fig.width = 8,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 copy  = chicago|>mutate(Date=as.Date(Date))
@@ -187,9 +188,37 @@ ts_diff_CH <- na.omit(diff(ts_CH))
 plot.xts(ts_diff_CH,
          main = "Daily confirmed cases of COVID-19 in Chicago")
 
-```
+# extract top 5 crime
+top5crime <- chicago %>%
+  filter(primary_type %in% head(chicago_summary$primary_type, 5)) %>%
+  group_by(Date, primary_type) %>%
+  tally() %>%
+  spread(primary_type, n)
 
-```{r graph2, fig.cap = "Yearly Trends for the top five crimes in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
+# rename columns
+colnames(top5crime) <- c('time',
+                         "assault",
+                         "battery",
+                         "criminal",
+                         'deceptive',
+                         "theft")
+top5crime <- na.omit(top5crime)
+# create time series
+top5crime_xts <- ts_xts(top5crime[,1:2])
+
+for (i in (3:ncol(top5crime))){
+  temp_xts <- ts_xts(top5crime[, c(1,i)])
+  top5crime_xts <- merge(top5crime_xts, temp_xts)
+}
+
+# extract difference, change per day
+top5crime_diff <- na.omit(diff(top5crime_xts))
+
+```
+When closely examining yearly trends for the different crimes, Figure \@ref(fig:graph2), it can be observed that theft rates and battery noticeably went down in March of 2020 while crimes like assault and Vehicle Theft remained steady. Furthermore, it can be observed throughout the pandemic, these levels remained relatively consistent throughout 2021 and 2022. In general, it is also noted that most crimes, with the exception of vehicle theft and deception, went up generally in summer and then reduced when the temperatures fell for winter, indicating a seasonal trend. 
+
+
+```{r graph2, fig.cap = "Yearly Trends for the top five crimes in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
 # 2020 only
 plt <- copy %>%
   dplyr::select(y_month, month, primary_type, year) %>%
@@ -212,13 +241,15 @@ knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 plt
 ```
 
-```{r graph3, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
-# 2020 only
+Finally, a more granular look at the frequency of each crime only during the pandemic, as shown in Figure \@ref(fig:graph3), shows that most crimes during the pandemic remained relatively consistent with the exception of criminal damage and theft. A sudden uptick in criminal damage and theft is noted in June 2020, which can be attributed to the violence caused by certain bad actors during the George Floyd Protests.
+
+```{r graph3, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+# 2020 Onwards only
 
 chicago_daily <- copy |>
   dplyr::select(Date, primary_type, year) |>
   filter(primary_type %in% chicago_summary$primary_type[1:5] | primary_type == "MOTOR VEHICLE THEFT", 
-         year == 2020) |>
+         year >= 2020) |>
  dplyr::count(Date, primary_type) |>
   na.omit() |>
   ggplot(aes(Date, n, group = primary_type, color = primary_type)) +
@@ -237,7 +268,10 @@ chicago_daily
 
 ## Los Angeles
 
-```{r graph5, fig.cap = "Daily Confirmed Cases of COVID-19 in L.A",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+
+
+
+```{r graph5, fig.cap = "Daily Confirmed Cases of COVID-19 in L.A",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 4, fig.width = 8,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 copy  = la|>mutate(date_occ=as.Date(date_occ))
@@ -250,10 +284,14 @@ ts_LA <- covid19_LA %>%
 ts_diff_LA <- na.omit(diff(ts_LA))
 plot.xts(ts_diff_LA,
          main = "Daily confirmed cases of COVID-19 in LA")
+
+
 ```
 
-```{r graph6, fig.cap = "Yearly Trends for the top crimes in Los Angeles",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
-# 2020 only
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui.Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
+
+```{r graph6, fig.cap = "Yearly Trends for the top crimes in Los Angeles",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 ty <- copy %>%
   dplyr::select(y_month, month, crm_cd_desc, year) %>%
@@ -279,13 +317,17 @@ ty <- copy %>%
 ty
 ```
 
-```{r graph7, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
+
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+
+```{r graph7, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 daily <- copy %>%
   dplyr::select(date_occ, crm_cd_desc, year) %>%
   filter(crm_cd_desc %in% LA_summary$crm_cd_desc[1:5],
-         year == 2020) %>%
+         year >= 2020) %>%
   count(date_occ, crm_cd_desc) %>%
   ggplot(aes(date_occ, n, group = crm_cd_desc, color = crm_cd_desc)) +
   geom_line() +
@@ -301,10 +343,13 @@ daily <- copy %>%
 
 daily
 ```
+<!-- \newpage -->
 
 ## Seattle
 
-```{r graph8, fig.cap = "Daily Confirmed Cases of COVID-19 in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+
+
+```{r graph8, fig.cap = "Daily Confirmed Cases of COVID-19 in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 4, fig.width = 8,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 copy  = seattle|>mutate(Date=as.Date(Date))
@@ -320,8 +365,10 @@ plot.xts(ts_diff_ST,
 ```
 
 
-```{r graph9, fig.cap = "Yearly Trends for the top crimes in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
-# 2020 only
+
+
+```{r graph9, fig.cap = "Yearly Trends for the top crimes in Seattle",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 yty <- copy %>%
   dplyr::select(y_month, MONTH, offense, YEAR) %>%
@@ -343,13 +390,19 @@ yty <- copy %>%
 yty
 ```
 
-```{r graph10, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
-# 2020 only
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui.Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui.
+
+
+
+
+```{r graph10, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 
 seattle_daily <- copy %>%
   dplyr::select(Date, offense, YEAR) %>%
-  filter(offense %in% seattle_summary$offense[1:5], YEAR=='2020') %>%
+  filter(offense %in% seattle_summary$offense[1:5], YEAR>='2020') %>%
   dplyr::count(Date, offense) %>%
   ggplot(aes(Date, n, group = offense, color = offense)) +
   geom_line() +
@@ -365,10 +418,13 @@ seattle_daily <- copy %>%
 seattle_daily
 ```
 
-### Philadelphia
+## Philadelphia
 
-```{r graph11, fig.cap = "Daily Confirmed Cases of COVID-19 in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
-# 2020 only
+
+
+
+```{r graph11, fig.cap = "Daily Confirmed Cases of COVID-19 in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 4, fig.width = 8,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 copy  = phil|>mutate(date=as.Date(date))
 
@@ -382,12 +438,15 @@ plot.xts(ts_diff_PH,
          main = "Daily confirmed cases of COVID-19 in Philadelphia")
 ```
 
-```{r graph12, fig.cap = "Yearly Trends for the top crimes in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 3, fig.width = 10,}
-# 2020 only
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui. Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
+
+
+```{r graph12, fig.cap = "Yearly Trends for the top crimes in Philadelphia",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 plt <- phil %>%
   dplyr::select(MONTH, dispatch_date, text_general_code, YEAR, y_month) %>%
-  filter(text_general_code %in% phil_summary$text_general_code[1:5], y_month != "2020-06") %>%
+  filter(text_general_code %in% phil_summary$text_general_code[1:5]) %>%
   count(YEAR, MONTH, text_general_code) %>%
   na.omit() %>% 
   mutate(Date = as.Date(paste("2000", MONTH, "01", sep = "-"))) %>%
@@ -403,12 +462,16 @@ plt <- phil %>%
 plt
 ```
 
-```{r graph13, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 6, fig.width = 12,}
-# 2020 only
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+
+
+```{r graph13, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 daily <- copy %>%
   dplyr::select(date, text_general_code, YEAR, y_month) %>%
-  filter(text_general_code %in% phil_summary$text_general_code[1:5], YEAR == 2020, y_month != '2020-06') %>%
+  filter(text_general_code %in% phil_summary$text_general_code[1:5], YEAR >= 2020) %>%
   count(date, text_general_code) %>%
   na.omit() %>%
   ggplot(aes(date, n, group = text_general_code, color = text_general_code))+
@@ -424,18 +487,953 @@ daily
 ```
 
 \newpage
-# Model 
-# Results 
-# Discussion
-## First discussion point 
-If my paper were 10 pages, then should be be at least 2.5 pages. The
-discussion is a chance to show off what you know and what you learnt from all
-this.  
+# Methods
 
-## Second discussion point 
-## Third discussion point 
-## Weaknesses and next steps 
-Weaknesses and next steps should also be included. 
+
+## Vector autoregression Model (VAR)
+
+Vector autoregression (VAR) is a statistical model used to capture the relationship between multiple quantities as they change over time. VAR is a type of stochastic process model. VAR models generalize the single-variable (univariate) autoregressive model by allowing for multivariate time series. VAR models are often used in economics and the natural sciences.
+A pth-order VAR is denoted "VAR(p)" and sometimes called "a VAR with p lags". A pth-order VAR model is written as
+
+$${\displaystyle y_{t}=c+A_{1}y_{t-1}+A_{2}y_{t-2}+\cdots +A_{p}y_{t-p}+e_{t},\,}y_{t}=c+A_{1}y_{{t-1}}+A_{2}y_{{t-2}}+\cdots +A_{p}y_{{t-p}}+e_{t},\,$$
+
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc.
+
+## Granger Causality Test
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui. Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
+
+
+<!-- \newpage -->
+
+## Forecasting and Impulse Response
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui. Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
+
+\newpage
+# Results 
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+
+## Chicago
+
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+
+```{r top 5 crime VAR, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+
+covid19_CH_diff <- data.frame(diff(covid19_CH$confirmed))
+colnames(covid19_CH_diff)[1] = "confirmed"
+covid19_CH_diff$date = covid19_CH$date[2:length(covid19_CH$date)]
+# time as integer
+covid19_CH_diff$timeInt = as.numeric(covid19_CH_diff$date)
+# make a copy to avoid perfect collinearity
+covid19_CH_diff$timeIid = covid19_CH_diff$timeInt
+
+# make a copy to avoid perfect collinearity
+covid19_CH_diff$timeIid = covid19_CH_diff$timeInt
+
+gamCH <- gamm4::gamm4(confirmed ~  s(timeInt, k=50), random = ~(1|timeIid), 
+	data=covid19_CH_diff, family=poisson(link='log'))
+
+toPredict = data.frame(time = seq(covid19_CH_diff$date[1], 
+                                          covid19_CH_diff$date[length(covid19_CH_diff$date)],
+                                  by = '1 day'))
+toPredict$timeInt = as.numeric(toPredict$time)
+
+# obtain forecast
+forecast <- data.frame(exp(do.call(cbind, mgcv::predict.gam(gamCH$gam, toPredict, se.fit=TRUE))))
+
+# access residuals
+CH_res <- data.frame(covid19_CH_diff$confirmed - forecast$fit)
+
+# transform into time series
+CH_res$time = covid19_CH_diff$date
+colnames(CH_res)[1] = "residuals"
+
+col_order <- c("time", "residuals")
+CH_res <- CH_res[, col_order]
+
+CH_res_ts <- ts_xts(CH_res)
+
+
+common_time <- seq.Date(start(CH_res_ts), as.Date("2021-12-31"), by = "day")
+
+# combine time series of crime and covid
+combined_diff <- merge(top5crime_diff[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")],
+                       CH_res_ts[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")])
+# plot.xts(CH_res_ts)
+# adf test
+# adf.test(as.ts(CH_res_ts))
+# Stationary process
+```
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+optimal_assault <- VARselect(na.omit(combined_diff)[,c(1,6)], type = 'none', lag.max = 10)
+optimal_battery <- VARselect(na.omit(combined_diff)[,c(2,6)], type = 'none', lag.max = 10)
+optimal_criminal <- VARselect(na.omit(combined_diff)[,c(3,6)], type = 'none', lag.max = 10)
+optimal_deceptive <- VARselect(na.omit(combined_diff)[,c(4,6)], type = 'none', lag.max = 10)
+optimal_theft <- VARselect(na.omit(combined_diff)[,c(5,6)], type = 'none', lag.max = 10)
+
+VAR_assault <- VAR(y=as.ts(na.omit(combined_diff)[,c(1,6)]), p=optimal_assault$selection[1])
+VAR_battery <- VAR(y=as.ts(na.omit(combined_diff)[,c(2,6)]), p=optimal_battery$selection[1])
+VAR_criminal <- VAR(y=as.ts(na.omit(combined_diff)[,c(3,6)]),
+                    p=optimal_criminal$selection[1])
+VAR_deceptive <- VAR(y=as.ts(na.omit(combined_diff)[,c(4,6)]),
+                     p=optimal_deceptive$selection[1])
+VAR_theft <- VAR(y=as.ts(na.omit(combined_diff)[,c(5,6)]), p=optimal_theft$selection[1])
+```
+
+
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+causality(VAR_assault, cause = colnames(combined_diff)[1])
+causality(VAR_assault, cause = "residuals")
+
+
+causality(VAR_battery, cause = colnames(combined_diff)[2])
+causality(VAR_battery, cause = "residuals")
+
+
+causality(VAR_criminal, cause = colnames(combined_diff)[3])
+causality(VAR_criminal, cause = "residuals")
+
+causality(VAR_deceptive, cause = colnames(combined_diff)[4])
+causality(VAR_deceptive, cause = "residuals")
+
+causality(VAR_theft, cause = colnames(combined_diff)[5])
+causality(VAR_theft, cause = "residuals")
+
+
+vehicle <- chicago %>%
+  filter(primary_type == 'MOTOR VEHICLE THEFT')%>%
+  group_by(date, primary_type) %>%
+  tally() %>%
+  spread(primary_type, n)
+
+colnames(vehicle) <- c('time', 'vehicle')
+vehicle_xts <- ts_xts(na.omit(vehicle)[,1:2])
+vehicle_diff <- na.omit(diff(vehicle_xts))
+
+combined_diff2 <- merge(vehicle_diff[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")],
+                       CH_res_ts[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")])
+optimal_vehicle <- VARselect(na.omit(combined_diff2)[,c(1,2)], type = 'none', lag.max = 10)
+VAR_vehicle <- VAR(y=as.ts(na.omit(combined_diff2)[,c(1,2)]), p=optimal_vehicle$selection[1])
+# 
+# causality(VAR_vehicle, cause = colnames(combined_diff2)[1])
+# causality(VAR_vehicle, cause = "residuals")
+```
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+# use car theft and criminal damage
+par(mfrow = c(1,2))
+lags = c(1:16)
+
+# criminal damange
+# only significant one is from covid to crime
+irf_criminal_2 <- irf(VAR_criminal, 
+                         impulse = "residuals", 
+                         response = "criminal", 
+                         n.ahead = 15,
+                         ortho = F)
+
+
+# ggplot version of it.
+irf_criminal_2_gg <- data.frame(
+  irf_criminal_2$irf$residuals[,1],
+  irf_criminal_2$Lower$residuals[,1],
+  irf_criminal_2$Upper$residuals[,1]
+)
+
+colnames(irf_criminal_2_gg) <- c("mean", "lower", "upper")
+
+i1 <- ggplot(irf_criminal_2_gg, aes(x = lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a new COVID-19 case")+
+  ylab("Criminal Damage")+
+  theme(text = element_text(size=10), 
+        plot.title = element_text(hjust = 0.5))
+i1
+
+interval_value_formatter <- "function(num, opts, seriesName, g, row, col) {
+  value = g.getValue(row, col);
+  if(value[0] != value[2]) {
+    lower = Dygraph.numberValueFormatter(value[0], opts);
+    upper = Dygraph.numberValueFormatter(value[2], opts);
+    return '[' + lower + ', ' + upper + ']';
+  } else {
+    return Dygraph.numberValueFormatter(num, opts);
+  }
+}"
+
+f_criminal <- forecast::forecast(VAR_criminal)
+
+
+autoplot(f_criminal$forecast$criminal) +
+  ggtitle("Prediction on how many more criminal damage cases compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+# use car theft and criminal damage
+par(mfrow = c(1,2))
+lags = c(1:16)
+
+# criminal damange
+# only significant one is from covid to crime
+irf_criminal_2 <- irf(VAR_vehicle, 
+                         impulse = "residuals", 
+                         response = "vehicle", 
+                         n.ahead = 15,
+                         ortho = F)
+
+
+# ggplot version of it.
+irf_criminal_2_gg <- data.frame(
+  irf_criminal_2$irf$residuals[,1],
+  irf_criminal_2$Lower$residuals[,1],
+  irf_criminal_2$Upper$residuals[,1]
+)
+
+colnames(irf_criminal_2_gg) <- c("mean", "lower", "upper")
+
+i1 <- ggplot(irf_criminal_2_gg, aes(x = lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a new COVID-19 case")+
+  ylab("Vehicle Theft")+
+  theme(text = element_text(size=10), 
+        plot.title = element_text(hjust = 0.5))
+i1
+
+interval_value_formatter <- "function(num, opts, seriesName, g, row, col) {
+  value = g.getValue(row, col);
+  if(value[0] != value[2]) {
+    lower = Dygraph.numberValueFormatter(value[0], opts);
+    upper = Dygraph.numberValueFormatter(value[2], opts);
+    return '[' + lower + ', ' + upper + ']';
+  } else {
+    return Dygraph.numberValueFormatter(num, opts);
+  }
+}"
+
+f_criminal <- forecast::forecast(VAR_criminal)
+
+
+autoplot(f_criminal$forecast$criminal) +
+  ggtitle("Prediction on how many more Vehicle Theft cases compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+
+
+
+## Los Angeles
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+
+
+
+```{r top 5 crime VAR2, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+
+LA<-la
+top5crime <- LA %>%
+  filter(crm_cd_desc %in% head(LA_summary$crm_cd_desc, 5)) %>%
+  group_by(date_occ, crm_cd_desc) %>%
+  tally() %>%
+  spread(crm_cd_desc, n)
+
+# rename columns
+colnames(top5crime) <- c('time',
+                         "battery",
+                         "burglary",
+                         'burglary from vehicle',
+                         "vandalism",
+                         'vehicle')
+# create date
+top5crime$time <- as.Date(top5crime$time,
+                          format = "%Y-%m-%d")
+top5crime <- na.omit(top5crime)
+# create time series
+top5crime_xts <- ts_xts(top5crime[,1:2])
+
+for (i in (3:ncol(top5crime))){
+  temp_xts <- ts_xts(top5crime[, c(1,i)])
+  top5crime_xts <- merge(top5crime_xts, temp_xts)
+}
+
+# extract difference, change per day
+top5crime_diff <- na.omit(diff(top5crime_xts))
+
+ts_LA <- covid19_LA %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# try first log difference
+ts_diff_LA <- diff(ts_LA)
+# still clearly not stationary
+# need de-trend
+
+# de-trend 
+# GAMM model from STA303 A3
+
+# calculate the difference per day
+covid19_LA_diff <- data.frame(diff(covid19_LA$confirmed))
+colnames(covid19_LA_diff)[1] = "confirmed"
+covid19_LA_diff$date = covid19_LA$date[2:length(covid19_LA$date)]
+
+# time as integer
+covid19_LA_diff$timeInt = as.numeric(covid19_LA_diff$date)
+# make a copy to avoid perfect collinearity
+covid19_LA_diff$timeIid = covid19_LA_diff$timeInt
+
+# make a copy to avoid perfect collinearity
+covid19_LA_diff$timeIid = covid19_LA_diff$timeInt
+
+# GAMM model
+# 50 too overfit. 15 looks decent
+gamLA <- gamm4::gamm4(confirmed ~  s(timeInt, k=90), random = ~(1|timeIid), 
+	data=covid19_LA_diff, family=poisson(link='log'))
+
+# obtain fitted value
+toPredict = data.frame(time = seq(covid19_LA_diff$date[1], 
+                                          covid19_LA_diff$date[length(covid19_LA_diff$date)],
+                                  by = '1 day'))
+toPredict$timeInt = as.numeric(toPredict$time)
+
+# obtain forecast
+forecast <- data.frame(exp(do.call(cbind, mgcv::predict.gam(gamLA$gam, toPredict, se.fit=TRUE))))
+
+# access residuals
+LA_res <- data.frame(covid19_LA_diff$confirmed - forecast$fit)
+
+# transform into time series
+LA_res$time = covid19_LA_diff$date
+colnames(LA_res)[1] = "residuals"
+
+col_order <- c("time", "residuals")
+LA_res <- LA_res[, col_order]
+
+LA_res_ts <- ts_xts(LA_res)
+```
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+common_time <- seq.Date(start(LA_res_ts), as.Date("2021-12-31"), by = "day")
+
+# combine time series of crime and covid
+combined_diff <- merge(top5crime_diff[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")],
+                       LA_res_ts[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")])
+
+# construct VAR
+optimal_battery <- VARselect(na.omit(combined_diff)[,c(1,6)], type = 'none', lag.max = 10)
+optimal_burglary <- VARselect(na.omit(combined_diff)[,c(2,6)], type = 'none', lag.max = 10)
+optimal_burglary_vehicle <- VARselect(na.omit(combined_diff)[,c(3,6)], type = 'none', lag.max = 10)
+optimal_vandalism <- VARselect(na.omit(combined_diff)[,c(4,6)], type = 'none', lag.max = 10)
+optimal_vehicle <- VARselect(na.omit(combined_diff)[,c(5,6)], type = 'none', lag.max = 10)
+
+VAR_battery <- VAR(y=as.ts(na.omit(combined_diff)[,c(1,6)]),
+                   p=optimal_battery$selection[1])
+VAR_burglary <- VAR(y=as.ts(na.omit(combined_diff)[,c(2,6)]),
+                    p=optimal_burglary$selection[1])
+VAR_burglary_vehicle <- VAR(y=as.ts(na.omit(combined_diff)[,c(3,6)]),
+                    p=optimal_burglary_vehicle$selection[1])
+VAR_vandalism <- VAR(y=as.ts(na.omit(combined_diff)[,c(4,6)]),
+                    p=optimal_vandalism$selection[1])
+VAR_vehicle <- VAR(y=as.ts(na.omit(combined_diff)[,c(5,6)]),
+                   p=optimal_vehicle$selection[1])
+```
+
+
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+causality(VAR_battery, cause = colnames(combined_diff)[1])
+causality(VAR_battery, cause = "residuals")
+
+causality(VAR_burglary, cause = colnames(combined_diff)[2])
+causality(VAR_burglary, cause = "residuals")
+
+causality(VAR_burglary_vehicle, cause = colnames(combined_diff)[3])
+causality(VAR_burglary_vehicle, cause = "residuals")
+
+causality(VAR_vandalism, cause = colnames(combined_diff)[4])
+causality(VAR_vandalism, cause = "residuals")
+
+causality(VAR_vehicle, cause = colnames(combined_diff)[5])
+causality(VAR_vehicle, cause = "residuals")
+
+
+# causality(VAR_vehicle, cause = colnames(combined_diff2)[1])
+# causality(VAR_vehicle, cause = "residuals")
+```
+
+
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+# use car theft and criminal damage
+lags = c(1:16)
+
+par(mfrow = c(1,2))
+
+# battery
+# criem significant to covid
+irf_battery_1 <- irf(VAR_battery,
+                     impulse = "battery",
+                     response = "residuals",
+                     n.ahead = 15)
+
+# html plot for battery
+irf_battery_1_gg <- data.frame(
+  irf_battery_1$irf$battery[,1],
+  irf_battery_1$Lower$battery[,1],
+  irf_battery_1$Upper$battery[,1]
+)
+
+colnames(irf_battery_1_gg) <- c("mean", "lower", "upper")
+
+irf_battery_1_plot <- ggplot(irf_battery_1_gg, aes(x=lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a new Battery case")+
+  ylab("COVID-19")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+
+irf_battery_1_plot
+
+f_battery <- forecast::forecast(VAR_battery)
+
+
+autoplot(f_battery$forecast$battery) +
+  ggtitle("Prediction on how many more Battery cases compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+# use car theft and criminal damage
+lags = c(1:16)
+
+par(mfrow = c(1,2))
+
+# battery
+# criem significant to covid
+irf_burglary_1 <- irf(VAR_burglary,
+                     impulse = "burglary",
+                     response = "residuals",
+                     n.ahead = 15)
+
+# html plot for burglary
+irf_burglary_1_gg <- data.frame(
+  irf_burglary_1$irf$burglary[,1],
+  irf_burglary_1$Lower$burglary[,1],
+  irf_burglary_1$Upper$burglary[,1]
+)
+
+colnames(irf_burglary_1_gg) <- c("mean", "lower", "upper")
+
+irf_burglary_1_plot <- ggplot(irf_burglary_1_gg, aes(x=lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a new burglary case")+
+  ylab("COVID-19")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+
+irf_burglary_1_plot
+
+f_burglary <- forecast::forecast(VAR_burglary)
+
+
+autoplot(f_burglary$forecast$burglary) +
+  ggtitle("Prediction on how many more burglary cases compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+\newpage
+
+
+## Philadelphia
+
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+```{r top 5 crime VAR3, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+# extract top 5 crime
+top5crime <- phil %>%
+  filter(text_general_code %in% head(phil_summary$text_general_code, 5)) %>%
+  group_by(dispatch_date, text_general_code) %>%
+  tally() %>%
+  spread(text_general_code, n)
+
+# rename columns
+colnames(top5crime) <- c('time',
+                         "offense",
+                         "assault",
+                         "vehicle",
+                         "thefts",
+                         "vandalism")
+
+# create time series
+top5crime_xts <- ts_xts(top5crime[,1:2])
+
+for (i in (3:ncol(top5crime))){
+  temp_xts <- ts_xts(top5crime[, c(1,i)])
+  top5crime_xts <- merge(top5crime_xts, temp_xts)
+}
+
+# extract difference, change per day
+top5crime_diff <- na.omit(diff(top5crime_xts))
+
+# use loaded covid data 
+# calculate the difference per day
+covid19_PA_diff <- data.frame(diff(covid19_PA$confirmed))
+colnames(covid19_PA_diff)[1] = "confirmed"
+covid19_PA_diff$date = covid19_PA$date[2:length(covid19_PA$date)]
+# extract for tranforming into time series data
+ts_PA <- covid19_PA %>% 
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# plot time series of PA infection
+#ts_plot(ts_PA)
+# conduct ADF Test
+#adf.test(as.ts(ts_PA))
+# not stationary!
+
+# try first log difference
+ts_diff_PA <- diff(ts_PA)
+#ts_plot(ts_diff_PA)
+# still clearly not stationary
+# need de-trend
+
+# de-trend 
+# GAMM model from STA303 A3
+
+# time as integer
+covid19_PA_diff$timeInt = as.numeric(covid19_PA_diff$date)
+# make a copy to avoid perfect collinearity
+covid19_PA_diff$timeIid = covid19_PA_diff$timeInt
+
+# make a copy to avoid perfect collinearity
+covid19_PA_diff$timeIid = covid19_PA_diff$timeInt
+
+# GAMM model
+# 50 too overfit. 15 looks decent
+#changed to 90
+
+# covid19_PA_diff <- covid19_PA_diff %>%
+#             filter(confirmed > 0)
+covid19_PA_diff$confirmed[covid19_PA_diff$confirmed < 0] <- 0
+
+gamPA <- gamm4::gamm4((confirmed) ~  s(timeInt, k=90), random = ~(1|timeIid), 
+	data=covid19_PA_diff, family=poisson(link='log'))
+
+
+
+#fitted value
+toPredict = data.frame(time = seq(covid19_PA_diff$date[1], 
+                                          covid19_PA_diff$date[length(covid19_PA_diff$date)],
+                                  by = '1 day'))
+toPredict$timeInt = as.numeric(toPredict$time)
+
+# obtain forecast
+forecast <- data.frame(exp(do.call(cbind, mgcv::predict.gam(gamPA$gam, toPredict, se.fit=TRUE))))
+
+# access residuals
+PA_res <- data.frame(covid19_PA_diff$confirmed - forecast$fit)
+
+# transform into time series
+PA_res$time = covid19_PA_diff$date
+colnames(PA_res)[1] = "residuals"
+
+col_order <- c("time", "residuals")
+PA_res <- PA_res[, col_order]
+
+PA_res_ts <- ts_xts(PA_res)
+
+# specify common time range
+# start from when covid was a thing
+# end with crime since it is manually updated
+common_time <- seq.Date(start(PA_res_ts), as.Date("2021-12-31"), by = "day")
+
+# combine time series of crime and covid
+combined_diff <- merge(top5crime_diff[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")],
+                       PA_res_ts[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")])
+```
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+optimal_offense <- VARselect(na.omit(combined_diff)[,c(1,6)], type = 'none', lag.max = 10)
+optimal_assault <- VARselect(na.omit(combined_diff)[,c(2,6)], type = 'none', lag.max = 10)
+optimal_vehicle <- VARselect(na.omit(combined_diff)[,c(3,6)], type = 'none', lag.max = 10)
+optimal_thefts <- VARselect(na.omit(combined_diff)[,c(4,6)], type = 'none', lag.max = 10)
+optimal_vandalism <- VARselect(na.omit(combined_diff)[,c(5,6)], type = 'none', lag.max = 10)
+
+VAR_offense <- VAR(y=as.ts(na.omit(combined_diff)[,c(1,6)]), p=optimal_offense$selection[1])
+VAR_assault <- VAR(y=as.ts(na.omit(combined_diff)[,c(2,6)]), p=optimal_assault$selection[1])
+VAR_vehicle <- VAR(y=as.ts(na.omit(combined_diff)[,c(3,6)]), p=optimal_vehicle$selection[1])
+VAR_thefts <- VAR(y=as.ts(na.omit(combined_diff)[,c(4,6)]), p=optimal_thefts$selection[1])
+VAR_vandalism <- VAR(y=as.ts(na.omit(combined_diff)[,c(5,6)]), p=optimal_vandalism$selection[1])
+```
+
+
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+causality(VAR_offense, cause = colnames(combined_diff)[1])
+causality(VAR_offense, cause = "residuals")
+
+causality(VAR_assault, cause = colnames(combined_diff)[2])
+causality(VAR_assault, cause = "residuals")
+
+causality(VAR_vehicle, cause = colnames(combined_diff)[3])
+causality(VAR_vehicle, cause = "residuals")
+
+causality(VAR_thefts, cause = colnames(combined_diff)[4])
+causality(VAR_thefts, cause = "residuals")
+
+```
+
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+
+lags = c(1:16)
+par(mfrow = c(1,2))
+
+# general offense
+# irf
+irf_offense_1 <- irf(VAR_offense,
+                     impulse = "offense",
+                     response = "residuals",
+                     n.ahead = 15)
+# ggplot
+irf_offense_1_gg <- data.frame(
+  irf_offense_1$irf$offense[,1],
+  irf_offense_1$Lower$offense[,1],
+  irf_offense_1$Upper$offense[,1]
+  )
+
+colnames(irf_offense_1_gg) <- c("mean", "lower", "upper")
+
+irf_offense_1_plot <- ggplot(irf_offense_1_gg, aes(x=lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a New Other Offense Case")+
+  ylab("COVID-19")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+
+irf_offense_1_plot
+
+
+
+f_offense <- forecast::forecast(VAR_offense)
+
+
+autoplot(f_offense$forecast$offense) +
+  ggtitle("Prediction on how many more other offense cases compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+
+# theft
+# irf
+irf_theft_1 <- irf(VAR_thefts,
+                   impulse = "thefts",
+                   response = "residuals",
+                   n.ahead = 15)
+
+# ggplot
+irf_theft_1_gg <- data.frame(
+  irf_theft_1$irf$thefts[,1],
+  irf_theft_1$Lower$thefts[,1],
+  irf_theft_1$Upper$thefts[,1]
+)
+
+colnames(irf_theft_1_gg) <- c("mean", "lower", "upper")
+
+irf_theft_1_plot <- ggplot(irf_theft_1_gg, aes(x=lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
+  theme_classic() +
+  ggtitle("") +
+  xlab("Days after a new Theft case")+
+  ylab("COVID-19")+
+  theme(text = element_text(size=8), 
+        plot.title = element_text(hjust = 0.5))
+
+
+irf_theft_1_plot
+
+f_theft <- forecast::forecast(VAR_thefts)
+
+
+autoplot(f_theft$forecast$thefts) +
+  ggtitle("Prediction on how many more thefts compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+```
+
+
+
+
+
+## Seattle 
+Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+```{r top 5 crime VAR4, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+# extract top 5 crime
+top5crime <- seattle %>%
+  filter(offense %in% head(seattle_summary$offense, 5)) %>%
+  group_by(Date, offense) %>%
+  tally() %>%
+  spread(offense, n)
+
+# rename columns
+colnames(top5crime) <- c('time',
+                         "larceny",
+                         "burglary",
+                         "vandalism",
+                         'vehicle_theft',
+                         "theft_from_vehicle")
+top5crime <- na.omit(top5crime)
+# create time series
+top5crime_xts <- ts_xts(top5crime[,1:2])
+
+for (i in (3:ncol(top5crime))){
+  temp_xts <- ts_xts(top5crime[, c(1,i)])
+  top5crime_xts <- merge(top5crime_xts, temp_xts)
+}
+
+# extract difference, change per day
+top5crime_diff <- na.omit(diff(top5crime_xts))
+# plot cumulative cases
+# extract for transforming into time series
+ts_SEA <- covid19_SEA %>%
+  dplyr::select(date, confirmed) %>%
+  ts_xts()
+
+# plot daily cases
+# first difference
+ts_diff_SEA <- na.omit(diff(ts_SEA))
+
+covid19_SEA_diff <- data.frame(diff(covid19_SEA$confirmed) - min(ts_diff_SEA))
+  
+colnames(covid19_SEA_diff)[1] = "confirmed"
+covid19_SEA_diff$date = covid19_SEA$date[2:length(covid19_SEA$date)]
+
+# time as integer
+covid19_SEA_diff$timeInt = as.numeric(covid19_SEA_diff$date)
+# RIke a copy to avoid perfect collinearity for mixed effect
+covid19_SEA_diff$timeIid = covid19_SEA_diff$timeInt
+
+# GAMM model
+gamSEA <- gamm4::gamm4(confirmed ~ s(timeInt, k = 90), 
+                      random = ~(1|timeIid),
+                      data = covid19_SEA_diff,
+                      family = poisson(link = 'log'))
+
+# plot fitted value
+toPredict = data.frame(time = seq(covid19_SEA_diff$date[1],
+                                  covid19_SEA_diff$date[length(covid19_SEA_diff$date)],
+                                  by = '1 day'))
+
+toPredict$timeInt = as.numeric(toPredict$time)
+forecast_covid <- data.frame(exp(do.call(cbind, mgcv::predict.gam(gamSEA$gam, toPredict, se.fit=TRUE))))
+                        
+                        
+# access residuals
+SEA_res <- data.frame(covid19_SEA_diff$confirmed - forecast_covid$fit)
+
+# transform into time series
+SEA_res$time = covid19_SEA_diff$date
+colnames(SEA_res)[1] = "residuals"
+
+col_order <- c("time", "residuals")
+SEA_res <- SEA_res[, col_order]
+
+SEA_res_ts <- ts_xts(SEA_res)
+
+# start from when covid was a thing
+# end with 1 day before today's date
+common_time <- seq.Date(start(SEA_res_ts), as.Date("2021-12-31") , by = "day")
+
+# combine time series of crime and covid
+combined_diff <- merge(top5crime_diff[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")],
+                       SEA_res_ts[paste(common_time[1],
+                                            common_time[length(common_time)],
+                                            sep = "/")])
+```
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+# variable selection based on AIC
+optimal_larceny <- VARselect(na.omit(combined_diff)[,c(1,6)], type = 'none', lag.max = 10)
+optimal_burglary <- VARselect(na.omit(combined_diff)[,c(2,6)], type = 'none', lag.max = 10)
+optimal_vandalism <- VARselect(na.omit(combined_diff)[,c(3,6)], type = 'none', lag.max = 10)
+optimal_vehicle_theft <- VARselect(na.omit(combined_diff)[,c(4,6)], type = 'none', lag.max = 10)
+optimal_theft_fromvehicle <- VARselect(na.omit(combined_diff)[,c(5,6)], type = 'none', lag.max = 10)
+
+# use AIC as selection criteria
+VAR_larceny <- VAR(y=as.ts(na.omit(combined_diff)[,c(1,6)]),
+                   p=optimal_larceny$selection[1])
+VAR_burglary <- VAR(y=as.ts(na.omit(combined_diff)[,c(2,6)]),
+                     p=optimal_burglary$selection[1])
+VAR_vandalism <- VAR(y=as.ts(na.omit(combined_diff)[,c(3,6)]),
+                    p=optimal_vandalism$selection[1])
+VAR_vehicle_theft <- VAR(y=as.ts(na.omit(combined_diff)[,c(4,6)]),
+                         p=optimal_vehicle_theft$selection[1])
+VAR_theft_fromvehicle<- VAR(y=as.ts(na.omit(combined_diff)[,c(5,6)]),
+                              p=optimal_theft_fromvehicle$selection[1])
+```
+
+
+
+```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
+causality(VAR_larceny, cause = colnames(combined_diff)[1])
+causality(VAR_larceny, cause = "residuals")
+causality(VAR_burglary, cause = colnames(combined_diff)[2])
+causality(VAR_burglary, cause = "residuals")
+causality(VAR_vandalism, cause = colnames(combined_diff)[3])
+causality(VAR_vandalism, cause = "residuals")
+causality(VAR_vehicle_theft, cause = colnames(combined_diff)[4])
+causality(VAR_vehicle_theft, cause = "residuals")
+causality(VAR_theft_fromvehicle, cause = colnames(combined_diff)[5])
+causality(VAR_theft_fromvehicle, cause = "residuals")
+
+```
+
+
+
+```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+lags = c(1:16)
+
+par(mfrow = c(1,2))
+# only covid significant to bulglary
+irf_burglary_1 <- irf(VAR_burglary,
+                      impulse = "residuals",
+                      response = "burglary",
+                      n.ahead = 15)
+# ggplot
+irf_burglary_1_gg <- data.frame(irf_burglary_1$irf$residuals[,1],
+                                irf_burglary_1$Lower$residuals[,1],
+                                irf_burglary_1$Upper$residuals[,1])
+
+colnames(irf_burglary_1_gg) <- c("mean", "lower", "upper")
+
+irf_burglary_1_plot <- ggplot(irf_burglary_1_gg, aes(x=lags)) +
+  geom_line(aes(y = mean), color = "black") +
+  geom_hline(yintercept = 0, color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
+  theme_classic() +
+  ggtitle("How many more burglary cases per day there will be 
+          after 1 confirmed covid19 case") +
+  xlab("Number of days after a confimed COVID-19 case")+
+  ylab("Number of bulglary cases")
+
+
+
+
+f_offense <- forecast::forecast(VAR_offense)
+
+irf_burglary_1_plot
+
+f_burglary <- forecast::forecast(VAR_burglary)
+
+
+autoplot(f_burglary$forecast$burglary) +
+  ggtitle("Prediction on how many more burglarys compared to yesterday") +
+  theme_minimal() +
+  ylab("Day-to-day change") +
+  xlab(paste("Number of days since", common_time[1]))
+
+
+```
+
+\newpage
+# Discussion
+
+
+
+Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris ultricies felis in neque hendrerit semper. Sed quis ullamcorper nulla. Donec a mauris ut ipsum interdum tempor a et urna. Ut vehicula ligula sit amet nunc sodales, et facilisis felis vestibulum. Ut ullamcorper erat lorem, id congue ex ultricies ac. Nunc fermentum neque orci. Quisque congue, ligula eget tincidunt condimentum, nulla leo suscipit nibh, eu auctor tellus augue nec turpis. Nulla lorem dui, scelerisque non molestie et, pharetra in enim. Curabitur placerat leo a purus pellentesque, lobortis hendrerit justo posuere. Fusce condimentum porttitor purus, eget ullamcorper elit bibendum et. Cras quam mauris, mollis a cursus non, cursus id neque. Cras eget elit posuere, ornare dui non, posuere neque.
+
+Ut tempor vestibulum augue sit amet hendrerit. Morbi rhoncus dignissim velit. Aliquam erat volutpat. Maecenas semper nulla nec sem tempus, eget elementum odio pulvinar. Donec sit amet nibh in risus dictum venenatis. Mauris non volutpat risus, vitae ornare dui. Praesent blandit leo nec dolor convallis, ut convallis lacus bibendum. Donec nec luctus quam. Nam congue suscipit ex, sed suscipit ligula vestibulum vel. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Duis suscipit sem at enim commodo eleifend. Aenean eu malesuada justo. Sed finibus tincidunt lectus, eget facilisis leo porttitor id.
+
+Morbi pellentesque ligula sed orci lacinia, in vulputate velit vestibulum. Nam commodo lectus odio, nec hendrerit purus consequat et. Sed vel iaculis ex. Maecenas mollis nisi id est pharetra facilisis. Fusce et tempor lorem. Etiam at facilisis nulla. Praesent sed erat odio. Integer sed dictum tellus, in finibus odio. Duis et rhoncus justo.
+Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris ultricies felis in neque hendrerit semper. Sed quis ullamcorper nulla. Donec a mauris ut ipsum interdum tempor a et urna. Ut vehicula ligula sit amet nunc sodales, et facilisis felis vestibulum. Ut ullamcorper erat lorem, id congue ex ultricies ac. Nunc fermentum neque orci. Quisque congue, ligula eget tincidunt condimentum, nulla leo suscipit nibh, eu auctor tellus augue nec turpis. Nulla lorem dui, scelerisque non molestie et, pharetra in enim. Curabitur placerat leo a purus pellentesque, lobortis hendrerit justo posuere. Fusce condimentum porttitor purus, eget ullamcorper elit bibendum et. Cras quam mauris, mollis a cursus non, cursus id neque. Cras eget elit posuere, ornare dui non, posuere neque.
+
+Ut tempor vestibulum augue sit amet hendrerit. Morbi rhoncus dignissim velit. Aliquam erat volutpat. Maecenas semper nulla nec sem tempus, eget elementum odio pulvinar. Donec sit amet nibh in risus dictum venenatis. Mauris non volutpat risus, vitae ornare dui. Praesent blandit leo nec dolor convallis, ut convallis lacus bibendum. Donec nec luctus quam. Nam congue suscipit ex, sed suscipit ligula vestibulum vel. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Duis suscipit sem at enim commodo eleifend. Aenean eu malesuada justo. Sed finibus tincidunt lectus, eget facilisis leo porttitor id.
+
+Morbi pellentesque ligula sed orci lacinia, in vulputate velit vestibulum. Nam commodo lectus odio, nec hendrerit purus consequat et. Sed vel iaculis ex. Maecenas mollis nisi id est pharetra facilisis. Fusce et tempor lorem. Etiam at facilisis nulla. Praesent sed erat odio. Integer sed dictum tellus, in finibus odio. Duis et rhoncus justo.
+Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris ultricies felis in neque hendrerit semper. Sed quis ullamcorper nulla. Donec a mauris ut ipsum interdum tempor a et urna. Ut vehicula ligula sit amet nunc sodales, et facilisis felis vestibulum. Ut ullamcorper erat lorem, id congue ex ultricies ac. Nunc fermentum neque orci. Quisque congue, ligula eget tincidunt condimentum, nulla leo suscipit nibh, eu auctor tellus augue nec turpis. Nulla lorem dui, scelerisque non molestie et, pharetra in enim. Curabitur placerat leo a purus pellentesque, lobortis hendrerit justo posuere. Fusce condimentum porttitor purus, eget ullamcorper elit bibendum et. Cras quam mauris, mollis a cursus non, cursus id neque. Cras eget elit posuere, ornare dui non, posuere neque.
+
+Ut tempor vestibulum augue sit amet hendrerit. Morbi rhoncus dignissim velit. Aliquam erat volutpat. Maecenas semper nulla nec sem tempus, eget elementum odio pulvinar. Donec sit amet nibh in risus dictum venenatis. Mauris non volutpat risus, vitae ornare dui. Praesent blandit leo nec dolor convallis, ut convallis lacus bibendum. Donec nec luctus quam. Nam congue suscipit ex, sed suscipit ligula vestibulum vel. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Duis suscipit sem at enim commodo eleifend. Aenean eu malesuada justo. Sed finibus tincidunt lectus, eget facilisis leo porttitor id.
+
+Morbi pellentesque ligula sed orci lacinia, in vulputate velit vestibulum. Nam commodo lectus odio, nec hendrerit purus consequat et. Sed vel iaculis ex. Maecenas mollis nisi id est pharetra facilisis. Fusce et tempor lorem. Etiam at facilisis nulla. Praesent sed erat odio. Integer sed dictum tellus, in finibus odio. Duis et rhoncus justo.Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+
+Morbi pellentesque ligula sed orci lacinia, in vulputate velit vestibulum. Nam commodo lectus odio, nec hendrerit purus consequat et. Sed vel iaculis ex. Maecenas mollis nisi id est pharetra facilisis. Fusce et tempor lorem. Etiam at facilisis nulla. Praesent sed erat odio. Integer sed dictum tellus, in finibus odio. Duis et rhoncus justo.Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+
+Morbi pellentesque ligula sed orci lacinia, in vulputate velit vestibulum. Nam commodo lectus odio, nec hendrerit purus consequat et. Sed vel iaculis ex. Maecenas mollis nisi id est pharetra facilisis. Fusce et tempor lorem. Etiam at facilisis nulla. Praesent sed erat odio. Integer sed dictum tellus, in finibus odio. Duis et rhoncus justo.Pellentesque id purus eros. Curabitur rutrum ut nisl vel facilisis. Maecenas dapibus vel justo ut aliquet. Suspendisse at auctor sem. Pellentesque sit amet tortor vel arcu sollicitudin lacinia. Pellentesque condimentum, metus eget maximus aliquam, neque nisl.
+
+
 \newpage 
 <!-- \appendix  -->
 

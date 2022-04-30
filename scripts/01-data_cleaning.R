@@ -86,21 +86,20 @@ covid19_PA <- covid19("USA", level = 3) %>%
   filter(confirmed > 0)
 
 
-
-
-
 ########################################################################
 ############################# PHILLY @##################################
 ########################################################################
-
+phil2021 <- read.csv("inputs/data/phil_2021.csv")
+phil2021 <- subset (phil2021, select = -c( the_geom , cartodb_id, the_geom_webmercator ))
 phil2020 <- read.csv("inputs/data/phil_2020.csv")
+phil2020 <- subset (phil2020, select = -c( the_geom , cartodb_id, the_geom_webmercator ))
 phil2019 <- read.csv("inputs/data/phil_2019.csv")
 phil2018 <- read.csv("inputs/data/phil_2018.csv")
 phil2017 <- read.csv("inputs/data/phil_2017.csv")
 phil2016 <- read.csv("inputs/data/phil_2016.csv")
 phil2015 <- read.csv("inputs/data/phil_2015.csv")
 
-phil <- do.call("rbind", list(phil2020, phil2019, phil2018, phil2017, phil2016, phil2015))
+phil <- do.call("rbind", list(phil2021,phil2020, phil2019, phil2018, phil2017, phil2016, phil2015))
 
 # add YEAR, MONTH, y_month
 phil <- phil %>%
