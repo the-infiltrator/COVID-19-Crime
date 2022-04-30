@@ -215,7 +215,7 @@ for (i in (3:ncol(top5crime))){
 top5crime_diff <- na.omit(diff(top5crime_xts))
 
 ```
-When closely examining yearly trends for the different crimes, Figure \@ref(fig:graph2), it can be observed that theft rates and battery noticeably went down in March of 2020 while crimes like assault and Vehicle Theft remained steady. Furthermore, it can be observed throughout the pandemic, these levels remained relatively consistent throughout 2021 and 2022. In general, it is also noted that most crimes, with the exception of vehicle theft and deception, went up generally in summer and then reduced when the temperatures fell for winter, indicating a seasonal trend. 
+When closely examining yearly trends for the different crimes, Figure \@ref(fig:graph2), it can be observed that theft rates and battery noticeably went down in March of 2020 while crimes like assault and Vehicle Theft remained steady. Furthermore, it can be observed throughout the pandemic, these levels remained relatively consistent throughout 2021 and 2022. 
 
 
 ```{r graph2, fig.cap = "Yearly Trends for the top five crimes in Chicago",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
@@ -240,10 +240,9 @@ plt <- copy %>%
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 plt
 ```
+In general, it is also noted that most crimes, with the exception of vehicle theft and deception, went up generally in summer and then reduced when the temperatures fell for winter, indicating a seasonal trend. Finally, a more granular look at the frequency of each crime only during the pandemic, as shown in Figure \@ref(fig:graph3), shows that most crimes during the pandemic remained relatively consistent with the exception of criminal damage and theft. A sudden uptick in criminal damage and theft is noted in June 2020, which can be attributed to the violence caused by certain bad actors during the George Floyd Protests.
 
-Finally, a more granular look at the frequency of each crime only during the pandemic, as shown in Figure \@ref(fig:graph3), shows that most crimes during the pandemic remained relatively consistent with the exception of criminal damage and theft. A sudden uptick in criminal damage and theft is noted in June 2020, which can be attributed to the violence caused by certain bad actors during the George Floyd Protests.
-
-```{r graph3, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+```{r graph3, fig.cap = "Frequency of each crime in Chicago during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
 # 2020 Onwards only
 
 chicago_daily <- copy |>
@@ -269,8 +268,6 @@ chicago_daily
 ## Los Angeles
 
 
-
-
 ```{r graph5, fig.cap = "Daily Confirmed Cases of COVID-19 in L.A",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 4, fig.width = 8,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
@@ -287,8 +284,10 @@ plot.xts(ts_diff_LA,
 
 
 ```
+Los Angeles, located in California, has historically been a hub of criminal activities mainly centered around narcotics due to its proximity to Tijuana and in general the US-Mexico border. Crime in Los Angeles is also prevalent due to the presence of one of the largest populations of homeless people in the United States mostly within the Skid-Row locality. Los Angeles was at the peak of criminal activity between 1970 and 1990, and more recently in 2015, it was revealed that the Los Angeles Police were under-reporting criminal activity for roughly 8 years, artificially lowering the crime rates and making it an intriguing city to examine from a data perspective [@bird2018impact]. To examine the crime rates within the city we source data directly from the  [Los Angeles Police Department Socrata API](https://dev.socrata.com/foundry/data.lacity.org/2nrs-mtv8) and look at the top five crimes which are mainly variants of burglary and theft crimes, alongside vehicle theft and assault. Finally, as shown in Figure \@ref(fig:graph5), the pandemic had a significant impact in Los Angeles with some of the first patients of COVID-19, including "patient zero", being from Los Angeles. California overall also faced a severe health crisis with cases up to ten times more than were anticipated.
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui.Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
+Further examining yearly trends for several crimes, based on Figures \@ref(fig:graph6) and \@ref(fig:graph7), it was found that several crimes like battery/assault, vehicle theft, and burglary increased. The noticeable increase in these crimes remained consistent for years spanning the pandemic, although a noticeable drop in battery, burglary, and vehicle theft was observed in January 2022.
+
 
 ```{r graph6, fig.cap = "Yearly Trends for the top crimes in Los Angeles",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 2, fig.width = 9,}
 
@@ -318,10 +317,9 @@ ty
 ```
 
 
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
 
 
-```{r graph7, fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
+```{r graph7, fig.cap = "Frequency of each crime in LA during months spanning the COVID-19 pandemic.",message = FALSE, echo = FALSE, warning=FALSE,fig.height = 5, fig.width = 10,}
 # 2020 only
 knitr::opts_chunk$set(fig.pos = "!htbp", out.extra = "")
 daily <- copy %>%
