@@ -493,7 +493,13 @@ daily
 
 ```
 
+
+Next, we take a look at the modelling approaches employed to further verify correlations between COVID-19 and crime data. 
+
+
 \newpage
+
+
 # Methods
 
 
@@ -519,14 +525,14 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec egestas justo in nulla bibendum ultrices. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec porttitor interdum purus, vel commodo lorem lacinia at. Suspendisse posuere ex non risus dapibus, vitae ullamcorper ex sollicitudin. Vestibulum interdum augue sit amet tortor mollis, vitae ornare diam pulvinar. Proin sapien elit, tempor non consectetur ut, mollis quis nunc. Maecenas tincidunt velit dolor, eu porta lacus ornare et. Ut in cursus felis. Etiam porta, ipsum sit amet pulvinar consectetur, nulla metus vehicula quam, ac blandit lacus ex et ante. Aliquam lacinia sagittis lobortis. Integer eros felis, gravida nec augue ut, blandit ultricies ipsum. Morbi aliquet at magna rhoncus vehicula. Suspendisse aliquam risus nunc, vitae eleifend lacus venenatis ut. Sed nisi eros, malesuada nec purus ut, tristique congue dui. Maecenas velit massa, fringilla vel tristique vitae, condimentum ut purus. Proin commodo eros iaculis, faucibus dui et, vehicula felis. Integer ligula urna, feugiat quis tristique vel, cursus nec quam. Mauris auctor sodales mauris, sed tristique quam sagittis in. Mauris ut bibendum enim. Maecenas consequat elit ut posuere aliquet. In hac habitasse platea dictumst. Integer est arcu, semper ac dolor at, pulvinar vehicula mi.
 
 \newpage
+
 # Results 
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+We now employ the methods outlined in the previous section to narrow down on the crimes that are the most significantly correlated with COVID-19 activity in the respective cities. For each city, the impulse response alongside the model predictions are visualized for the crimes that are most significantly associated with COVID-19.
 
 
 ## Chicago
 
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
-
+Based on the fitted VAR models for top crimes in Chicago, we find that COVID-19 cases do not have a significant Granger instantaneous causality, at a 95% confidence level, with crimes such as criminal damage ($p=0.8271$), and battery ($p=0.63$). Whereas, a statistically significant instantaneous correlation was found between COVID-19 cases impacting assault ($p=0.036$) and a significant Granger-causality with the cases impacting vehicle theft ($p = 0.00022$). The impulse response of a new case to these crimes and the model predictions are outlined in Figures \@ref(fig:r11) & \@ref(fig:r12). 
 
 ```{r top 5 crime VAR, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
 
@@ -636,59 +642,51 @@ combined_diff2 <- merge(vehicle_diff[paste(common_time[1],
 optimal_vehicle <- VARselect(na.omit(combined_diff2)[,c(1,2)], type = 'none', lag.max = 10)
 VAR_vehicle <- VAR(y=as.ts(na.omit(combined_diff2)[,c(1,2)]), p=optimal_vehicle$selection[1])
 # 
-# causality(VAR_vehicle, cause = colnames(combined_diff2)[1])
-# causality(VAR_vehicle, cause = "residuals")
+causality(VAR_vehicle, cause = colnames(combined_diff2)[1])
+causality(VAR_vehicle, cause = "residuals")
 ```
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+
+```{r r11, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on assault (left), and VAR model prediction for assault (right).", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 # use car theft and criminal damage
 par(mfrow = c(1,2))
 lags = c(1:16)
 
 # criminal damange
 # only significant one is from covid to crime
-irf_criminal_2 <- irf(VAR_criminal, 
+irf_assault_2 <- irf(VAR_assault, 
                          impulse = "residuals", 
-                         response = "criminal", 
+                         response = "assault", 
                          n.ahead = 15,
                          ortho = F)
 
 
 # ggplot version of it.
-irf_criminal_2_gg <- data.frame(
-  irf_criminal_2$irf$residuals[,1],
-  irf_criminal_2$Lower$residuals[,1],
-  irf_criminal_2$Upper$residuals[,1]
+irf_assault_2_gg <- data.frame(
+  irf_assault_2$irf$residuals[,1],
+  irf_assault_2$Lower$residuals[,1],
+  irf_assault_2$Upper$residuals[,1]
 )
 
-colnames(irf_criminal_2_gg) <- c("mean", "lower", "upper")
+colnames(irf_assault_2_gg) <- c("mean", "lower", "upper")
 
-i1 <- ggplot(irf_criminal_2_gg, aes(x = lags)) +
+i1 <- ggplot(irf_assault_2_gg, aes(x = lags)) +
   geom_line(aes(y = mean), color = "black") +
   geom_hline(yintercept = 0, color = "blue") +
   theme_classic() +
   ggtitle("") +
   xlab("Days after a new COVID-19 case")+
-  ylab("Criminal Damage")+
+  ylab("Assualt")+
   theme(text = element_text(size=10), 
         plot.title = element_text(hjust = 0.5))
 i1
 
-interval_value_formatter <- "function(num, opts, seriesName, g, row, col) {
-  value = g.getValue(row, col);
-  if(value[0] != value[2]) {
-    lower = Dygraph.numberValueFormatter(value[0], opts);
-    upper = Dygraph.numberValueFormatter(value[2], opts);
-    return '[' + lower + ', ' + upper + ']';
-  } else {
-    return Dygraph.numberValueFormatter(num, opts);
-  }
-}"
-
-f_criminal <- forecast::forecast(VAR_criminal)
 
 
-autoplot(f_criminal$forecast$criminal) +
-  ggtitle("Prediction on how many more criminal damage cases compared to yesterday") +
+f_assault <- forecast::forecast(VAR_assault)
+
+
+autoplot(f_assault$forecast$assault) +
+  ggtitle("Prediction on how many more assault cases compared to yesterday") +
   theme_minimal() +
   ylab("Day-to-day change") +
   xlab(paste("Number of days since", common_time[1]))
@@ -696,7 +694,7 @@ autoplot(f_criminal$forecast$criminal) +
 ```
 
 
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+```{r r12, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on vehicle thefts (left), and VAR model prediction for vehicle thefts (right).", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 # use car theft and criminal damage
 par(mfrow = c(1,2))
 lags = c(1:16)
@@ -756,8 +754,8 @@ autoplot(f_criminal$forecast$criminal) +
 
 
 ## Los Angeles
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
 
+When it comes to Los Angeles, only vandalism stood out based on the fitted VAR models. We find that COVID-19 cases do not have a significant Granger instantaneous causality, at a 95% confidence level, with crimes such as battery ($p=0.67$), theft from vehicle ($p=0.9$), vehicle theft ($p=0.81$),  and burglary ($p=0.26$). Whereas, a statistically significant Granger causality was found between COVID-19 cases impacting vandalism ($p=0.003$). The impulse response of a new case to vandalism and the model predictions are outlined in Figure \@ref(fig:r21). 
 
 
 
@@ -899,8 +897,7 @@ causality(VAR_vehicle, cause = "residuals")
 
 
 
-
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+```{r r21, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on vandalism (left), and VAR model prediction for vandalism (right).", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 # use car theft and criminal damage
 lags = c(1:16)
 
@@ -908,38 +905,38 @@ par(mfrow = c(1,2))
 
 # battery
 # criem significant to covid
-irf_battery_1 <- irf(VAR_battery,
-                     impulse = "battery",
-                     response = "residuals",
+irf_vandalism_1 <- irf(VAR_vandalism,
+                     impulse = "residuals",
+                     response = "vandalism",
                      n.ahead = 15)
 
-# html plot for battery
-irf_battery_1_gg <- data.frame(
-  irf_battery_1$irf$battery[,1],
-  irf_battery_1$Lower$battery[,1],
-  irf_battery_1$Upper$battery[,1]
+# html plot for vandalism
+irf_vandalism_1_gg <- data.frame(
+  irf_vandalism_1$irf$residuals[,1],
+  irf_vandalism_1$Lower$residuals[,1],
+  irf_vandalism_1$Upper$residuals[,1]
 )
 
-colnames(irf_battery_1_gg) <- c("mean", "lower", "upper")
+colnames(irf_vandalism_1_gg) <- c("mean", "lower", "upper")
 
-irf_battery_1_plot <- ggplot(irf_battery_1_gg, aes(x=lags)) +
+irf_vandalism_1_plot <- ggplot(irf_vandalism_1_gg, aes(x=lags)) +
   geom_line(aes(y = mean), color = "black") +
   geom_hline(yintercept = 0, color = "blue") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
   theme_classic() +
   ggtitle("") +
-  xlab("Days after a new Battery case")+
-  ylab("COVID-19")+
+  xlab("Days after a new COVID-19 case")+
+  ylab("Vandalism")+
   theme(text = element_text(size=8), 
         plot.title = element_text(hjust = 0.5))
 
-irf_battery_1_plot
+irf_vandalism_1_plot
 
-f_battery <- forecast::forecast(VAR_battery)
+f_vandalism <- forecast::forecast(VAR_vandalism)
 
 
-autoplot(f_battery$forecast$battery) +
-  ggtitle("Prediction on how many more Battery cases compared to yesterday") +
+autoplot(f_vandalism$forecast$vandalism) +
+  ggtitle("Prediction on how many more vandalism cases compared to yesterday") +
   theme_minimal() +
   ylab("Day-to-day change") +
   xlab(paste("Number of days since", common_time[1]))
@@ -947,59 +944,11 @@ autoplot(f_battery$forecast$battery) +
 ```
 
 
-
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
-# use car theft and criminal damage
-lags = c(1:16)
-
-par(mfrow = c(1,2))
-
-# battery
-# criem significant to covid
-irf_burglary_1 <- irf(VAR_burglary,
-                     impulse = "burglary",
-                     response = "residuals",
-                     n.ahead = 15)
-
-# html plot for burglary
-irf_burglary_1_gg <- data.frame(
-  irf_burglary_1$irf$burglary[,1],
-  irf_burglary_1$Lower$burglary[,1],
-  irf_burglary_1$Upper$burglary[,1]
-)
-
-colnames(irf_burglary_1_gg) <- c("mean", "lower", "upper")
-
-irf_burglary_1_plot <- ggplot(irf_burglary_1_gg, aes(x=lags)) +
-  geom_line(aes(y = mean), color = "black") +
-  geom_hline(yintercept = 0, color = "blue") +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
-  theme_classic() +
-  ggtitle("") +
-  xlab("Days after a new burglary case")+
-  ylab("COVID-19")+
-  theme(text = element_text(size=8), 
-        plot.title = element_text(hjust = 0.5))
-
-irf_burglary_1_plot
-
-f_burglary <- forecast::forecast(VAR_burglary)
-
-
-autoplot(f_burglary$forecast$burglary) +
-  ggtitle("Prediction on how many more burglary cases compared to yesterday") +
-  theme_minimal() +
-  ylab("Day-to-day change") +
-  xlab(paste("Number of days since", common_time[1]))
-
-```
-
-\newpage
 
 
 ## Philadelphia
 
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+Coming to Philadelphia, only vehicle and general thefts stood out based on the fitted VAR models. We find that COVID-19 cases do not have a significant Granger instantaneous causality, at a 95% confidence level, with crimes such as offense ($p=0.42$) and assault ($p=0.97$). On the contrary, a close statistically significant Granger causality was found between COVID-19 cases impacting vehicle theft ($p=0.0009$) and an instantaneous causality was found with thefts ($0.005$). The impulse response of a new case on these crimes and the model predictions are outlined in Figures \@ref(fig:r31) and \@ref(fig:r32). 
 
 ```{r top 5 crime VAR3, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
 # extract top 5 crime
@@ -1142,46 +1091,46 @@ causality(VAR_thefts, cause = "residuals")
 
 
 
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+```{r r31, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on vehicle thefts (left), and VAR model prediction for vehicle thefts (right).", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 
 lags = c(1:16)
 par(mfrow = c(1,2))
 
-# general offense
+# general vehicle theft
 # irf
-irf_offense_1 <- irf(VAR_offense,
-                     impulse = "offense",
-                     response = "residuals",
+irf_vehicle_1 <- irf(VAR_vehicle,
+                     impulse = "residuals",
+                     response = "vehicle",
                      n.ahead = 15)
 # ggplot
-irf_offense_1_gg <- data.frame(
-  irf_offense_1$irf$offense[,1],
-  irf_offense_1$Lower$offense[,1],
-  irf_offense_1$Upper$offense[,1]
+irf_vehicle_1_gg <- data.frame(
+  irf_vehicle_1$irf$residuals[,1],
+  irf_vehicle_1$Lower$residuals[,1],
+  irf_vehicle_1$Upper$residuals[,1]
   )
 
-colnames(irf_offense_1_gg) <- c("mean", "lower", "upper")
+colnames(irf_vehicle_1_gg) <- c("mean", "lower", "upper")
 
-irf_offense_1_plot <- ggplot(irf_offense_1_gg, aes(x=lags)) +
+irf_vehicle_1_plot <- ggplot(irf_vehicle_1_gg, aes(x=lags)) +
   geom_line(aes(y = mean), color = "black") +
   geom_hline(yintercept = 0, color = "blue") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
   theme_classic() +
   ggtitle("") +
-  xlab("Days after a New Other Offense Case")+
-  ylab("COVID-19")+
+  xlab("Days after a New COVID-19 Case")+
+  ylab("Vehicle Thefts")+
   theme(text = element_text(size=8), 
         plot.title = element_text(hjust = 0.5))
 
-irf_offense_1_plot
+irf_vehicle_1_plot
 
 
 
-f_offense <- forecast::forecast(VAR_offense)
+f_vehicle <- forecast::forecast(VAR_vehicle)
 
 
-autoplot(f_offense$forecast$offense) +
-  ggtitle("Prediction on how many more other offense cases compared to yesterday") +
+autoplot(f_vehicle$forecast$vehicle) +
+  ggtitle("Prediction on how many more vehicle theft cases compared to yesterday") +
   theme_minimal() +
   ylab("Day-to-day change") +
   xlab(paste("Number of days since", common_time[1]))
@@ -1190,20 +1139,20 @@ autoplot(f_offense$forecast$offense) +
 
 
 
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+```{r r32, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on thefts (left), and VAR model prediction for thefts (right).", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 
 # theft
 # irf
 irf_theft_1 <- irf(VAR_thefts,
-                   impulse = "thefts",
-                   response = "residuals",
+                   impulse = "residuals",
+                   response = "thefts",
                    n.ahead = 15)
 
 # ggplot
 irf_theft_1_gg <- data.frame(
-  irf_theft_1$irf$thefts[,1],
-  irf_theft_1$Lower$thefts[,1],
-  irf_theft_1$Upper$thefts[,1]
+  irf_theft_1$irf$residuals[,1],
+  irf_theft_1$Lower$residuals[,1],
+  irf_theft_1$Upper$residuals[,1]
 )
 
 colnames(irf_theft_1_gg) <- c("mean", "lower", "upper")
@@ -1214,8 +1163,8 @@ irf_theft_1_plot <- ggplot(irf_theft_1_gg, aes(x=lags)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
   theme_classic() +
   ggtitle("") +
-  xlab("Days after a new Theft case")+
-  ylab("COVID-19")+
+  xlab("Days after a new COVID-19 case")+
+  ylab("Thefts")+
   theme(text = element_text(size=8), 
         plot.title = element_text(hjust = 0.5))
 
@@ -1238,7 +1187,9 @@ autoplot(f_theft$forecast$thefts) +
 
 
 ## Seattle 
-Nulla consectetur erat arcu, eu porta urna sagittis nec. In sed vestibulum turpis. Nullam vel libero eu sapien eleifend condimentum. Donec nunc mi, ornare quis viverra ut, volutpat vitae orci. Quisque sit amet porttitor mauris, faucibus maximus arcu. Duis et lorem eu elit consectetur posuere. Aliquam blandit nisl nisl. Proin velit arcu, gravida vel tellus.
+
+Finally, for the city of Seattle, only burglaries stood out based on the fitted VAR models. We find that COVID-19 cases do not have a significant Granger instantaneous causality, at a 95% confidence level, with crimes such as larceny ($p=0.25$), vandalism ($p=0.79$), vehicle theft ($p=0.31$) and theft from vehicle ($p=0.46$). With a relaxed 90% confidence level, a statistically significant Granger causality was found between COVID-19 cases impacting burglaries ($p=0.073$). The impulse response of a new case on burglaries and the model predictions are outlined in Figure \@ref(fig:r41). 
+
 
 ```{r top 5 crime VAR4, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
 # extract top 5 crime
@@ -1352,6 +1303,7 @@ VAR_theft_fromvehicle<- VAR(y=as.ts(na.omit(combined_diff)[,c(5,6)]),
 ```{r, message = FALSE, echo = FALSE, warning=FALSE, include=FALSE}
 causality(VAR_larceny, cause = colnames(combined_diff)[1])
 causality(VAR_larceny, cause = "residuals")
+
 causality(VAR_burglary, cause = colnames(combined_diff)[2])
 causality(VAR_burglary, cause = "residuals")
 causality(VAR_vandalism, cause = colnames(combined_diff)[3])
@@ -1365,7 +1317,7 @@ causality(VAR_theft_fromvehicle, cause = "residuals")
 
 
 
-```{r fig.show="hold",  fig.cap = "Frequency of each crime during months spanning the COVID-19 pandemic. Frequency of each crime during months spanning the COVID-19 pandemic.", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
+```{r r41, fig.show="hold",  fig.cap = "Impact of a new COVID-19 case on burglaries (left), and VAR model prediction for burglaries (right). ", out.width="50%", message = FALSE, echo = FALSE, warning=FALSE}
 lags = c(1:16)
 
 par(mfrow = c(1,2))
@@ -1386,8 +1338,6 @@ irf_burglary_1_plot <- ggplot(irf_burglary_1_gg, aes(x=lags)) +
   geom_hline(yintercept = 0, color = "blue") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5) +
   theme_classic() +
-  ggtitle("How many more burglary cases per day there will be 
-          after 1 confirmed covid19 case") +
   xlab("Number of days after a confimed COVID-19 case")+
   ylab("Number of bulglary cases")
 
@@ -1409,6 +1359,8 @@ autoplot(f_burglary$forecast$burglary) +
 
 
 ```
+
+Across all of the studied cities, we found that the crimes most significantly associated with COVID-19 cases are vehicle thefts and burglaries/thefts, with vandalism and assault also emerging as significant in some sectors. In the subsequent section we now discuss various implications of these findings and also discuss limitations of the study.
 
 \newpage
 # Discussion
